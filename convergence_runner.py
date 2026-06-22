@@ -9,6 +9,7 @@ Parsers (pure functions — only need the pw.x stdout string)
     parse_total_energy_ry(stdout)
     parse_irreducible_kpoints(stdout)
     parse_force_z_ev_ang(stdout, atom_index_1based)
+    parse_total_scf_correction_ev_ang(stdout)
     parse_stress_zz_kbar(stdout)
 
 Convergence criterion (pure function)
@@ -17,7 +18,8 @@ Convergence criterion (pure function)
 Runner class
     QERunner(pw_cmd)
         .run_sweep(cases, run_dir, force_rerun=False,
-                   collect_force_stress=False, atom_index_1based=1)
+                   collect_force_stress=False, atom_index_1based=1,
+                   collect_scf_correction=False)
 
         cases is a list of (tag, PWInput) pairs built in the notebook.
 """
@@ -97,6 +99,40 @@ def parse_hydrostatic_pressure_kbar(stdout: str) -> float:
     return float(hits[-1])
 
 
+def parse_mean_abs_scf_correction_ev_ang(stdout: str) -> float:
+    """Return the mean absolute per-component SCF force correction in eV/Ang.
+
+    The "Total SCF correction" printed on a single line can vanish by symmetry
+    (equal-and-opposite corrections on symmetry-related atoms sum to zero).
+    This function instead parses the per-atom block printed when
+    verbosity = 'medium' or 'high' and computes::
+
+        sum(|dF_{i,alpha}|) / (3 * nat)
+
+    which is always non-zero when corrections exist.  Raises ValueError if the
+    block is absent (set verbosity = 'medium' in CONTROL).
+    """
+    m = re.search(
+        r'The SCF correction term to forces\s*\n((?:[ \t]*atom\s+\d+.*\n)+)',
+        stdout,
+    )
+    if not m:
+        raise ValueError(
+            'SCF correction block not found — set verbosity = "medium" in CONTROL.'
+        )
+    components = []
+    for line in m.group(1).splitlines():
+        hit = re.search(
+            r'force\s*=\s*([-+0-9.Ee]+)\s+([-+0-9.Ee]+)\s+([-+0-9.Ee]+)', line
+        )
+        if hit:
+            components.extend(float(hit.group(k)) for k in (1, 2, 3))
+    if not components:
+        raise ValueError('SCF correction block found but contained no atom lines.')
+    mean_abs_ry_bohr = sum(abs(c) for c in components) / len(components)
+    return mean_abs_ry_bohr * RY_PER_BOHR_TO_EV_PER_ANG
+
+
 def parse_stress_zz_kbar(stdout: str) -> float:
     """Return the zz component of the stress tensor in kbar.
 
@@ -171,6 +207,7 @@ class QERunner:
         collect_force_stress=False,
         atom_index_1based=1,
         collect_pressure=False,
+        collect_scf_correction=False,
     ):
         """Run all cases and return a list of result dicts.
 
@@ -189,27 +226,37 @@ class QERunner:
         collect_pressure : bool
             If True, parse the hydrostatic pressure P (kbar) from the stress block.
             Requires ``tstress = .true.`` in the pw.x input.
+        collect_scf_correction : bool
+            If True, parse the mean absolute per-component SCF force correction
+            (eV/Ang) from the verbose force block.  Requires ``verbosity = 'medium'``
+            or ``'high'`` in the CONTROL namelist.
 
         Returns
         -------
         list of dicts — one per case, with keys:
             tag, energy_ry, wall_s, nk_irr,
-            and optionally force_z_ev_ang, pressure_kbar.
+            and optionally force_z_ev_ang, pressure_kbar, scf_correction_ev_ang.
         """
         return [
             self._run_case(tag, inp, Path(run_dir), force_rerun,
-                           collect_force_stress, atom_index_1based, collect_pressure)
+                           collect_force_stress, atom_index_1based,
+                           collect_pressure, collect_scf_correction)
             for tag, inp in cases
         ]
 
-    def _run_case(self, tag, inp, run_dir, force_rerun, collect_force_stress, atom_index_1based, collect_pressure=False):
+    def _run_case(self, tag, inp, run_dir, force_rerun, collect_force_stress,
+                  atom_index_1based, collect_pressure=False, collect_scf_correction=False):
         in_file  = run_dir / f'{tag}.in'
         out_file = run_dir / f'{tag}.out'
 
         in_file.write_text(inp.to_string())
 
         if out_file.is_file() and not force_rerun:
-            stdout = out_file.read_text()
+            _text = out_file.read_text()
+        else:
+            _text = None
+        if _text is not None and 'JOB DONE.' in _text:
+            stdout = _text
             wall_s = np.nan
         else:
             t0 = time.perf_counter()
@@ -236,4 +283,6 @@ class QERunner:
             data['force_z_ev_ang'] = parse_force_z_ev_ang(stdout, atom_index_1based)
         if collect_pressure:
             data['pressure_kbar'] = parse_hydrostatic_pressure_kbar(stdout)
+        if collect_scf_correction:
+            data['scf_correction_ev_ang'] = parse_mean_abs_scf_correction_ev_ang(stdout)
         return data

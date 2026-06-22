@@ -197,6 +197,65 @@ def plot_force_stress_ecut_convergence(
     plt.show()
 
 
+def plot_conv_thr_sweep(
+    conv_thr_values,
+    fz_ev_ang,
+    scf_corr_ev_ang,
+    dF_mev_ang,
+    time_s,
+    force_threshold_mev_ang=None,
+):
+    """Plot results of a conv_thr sweep: force value, error metrics, and timing.
+
+    Parameters
+    ----------
+    conv_thr_values : sequence of float
+        conv_thr values used (Ry), e.g. [1e-6, 1e-7, ..., 1e-10].
+    fz_ev_ang : sequence of float
+        z-force on the displaced atom (eV/Ang) for each conv_thr.
+    scf_corr_ev_ang : sequence of float
+        Mean absolute per-component SCF correction (eV/Ang) from the verbose block.
+    dF_mev_ang : sequence of float
+        |ΔFz| relative to the tightest conv_thr run (meV/Ang).
+    time_s : sequence of float
+        Wall time (s) for each run.
+    force_threshold_mev_ang : float or None
+        If given, draws a horizontal threshold line on the error panel.
+    """
+    scf_corr_mev = [v * 1000 for v in scf_corr_ev_ang]
+
+    fig, ax = plt.subplots(1, 3, figsize=(15, 4))
+
+    # --- Force value ---
+    ax[0].semilogx(conv_thr_values, fz_ev_ang, "o-")
+    ax[0].invert_xaxis()
+    ax[0].set_xlabel("conv_thr (Ry)  [tighter →]")
+    ax[0].set_ylabel("Fz (eV/Å)")
+    ax[0].set_title("Force vs SCF threshold")
+
+    # --- Error metrics ---
+    ax[1].loglog(conv_thr_values, scf_corr_mev, "s-", label="SCF correction (QE estimate)")
+    ax[1].loglog(conv_thr_values, dF_mev_ang, "o--", label="|ΔFz| vs tightest")
+    if force_threshold_mev_ang is not None:
+        ax[1].axhline(force_threshold_mev_ang, ls="--", color="tab:red",
+                      label=f"{force_threshold_mev_ang:g} meV/Å")
+    ax[1].invert_xaxis()
+    ax[1].set_xlabel("conv_thr (Ry)  [tighter →]")
+    ax[1].set_ylabel("Force error (meV/Å)")
+    ax[1].set_title("SCF correction vs threshold")
+    ax[1].legend(fontsize=8)
+
+    # --- Timing ---
+    ax[2].semilogx(conv_thr_values, time_s, "o-")
+    ax[2].invert_xaxis()
+    ax[2].set_xlabel("conv_thr (Ry)  [tighter →]")
+    ax[2].set_ylabel("Wall time (s)")
+    ax[2].set_title("Timing vs SCF threshold")
+
+    plt.tight_layout()
+    plt.show()
+
+
 def plot_force_stress_k_convergence(
     k_x,
     force_z_ev_ang,
