@@ -81,7 +81,7 @@ def parse_gamma_symmetries(bandsx_stdout):
     in_symm  = False
 
     for line in bandsx_stdout.splitlines():
-        if re.search(r'k\s*=\s*0\.0+\s+0\.0+\s+0\.0+', line):
+        if re.search(r'xk=\(\s*0\.0+\s*,\s*0\.0+\s*,\s*0\.0+', line):
             in_gamma = True
             in_symm  = False
             results  = []
@@ -93,16 +93,14 @@ def parse_gamma_symmetries(bandsx_stdout):
             continue
         if not in_symm:
             continue
+        # format: e(  1 -  1) =    -64.55  eV     1   --> A_1g G_1   G_1+
         m = re.match(
-            r'\s*e\(\s*(\d+)\s*-\s*(\d+)\s*\)\s*=\s*([-\d.]+)\s*eV\s*-->\s*(.*)', line)
+            r'\s*e\(\s*(\d+)\s*-\s*(\d+)\s*\)\s*=\s*([-\d.]+)\s*eV\s+(\d+)\s*-->\s*(.*)', line)
         if m:
             n1, n2  = int(m.group(1)), int(m.group(2))
             e_ev    = float(m.group(3))
-            rest    = m.group(4).strip()
-            dm      = re.search(r'\(\s*(\d+)\s*\)', rest)
-            deg     = int(dm.group(1)) if dm else 1
-            raw_lbl = rest[:dm.start()].strip() if dm else rest.strip()
-            label   = re.sub(r'\|[^|]*\|\s*', '', raw_lbl).strip()
+            deg     = int(m.group(4))
+            label   = m.group(5).strip()
             results.append({'bands': (n1, n2), 'energy_ev': e_ev, 'label': label, 'deg': deg})
         elif results and not line.strip():
             break   # blank line ends the symmetry block
