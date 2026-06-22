@@ -8,6 +8,7 @@ SystemNamelist    &SYSTEM  (ibrav-aware; can be populated from an ASE Atoms obje
 ElectronsNamelist &ELECTRONS
 IonsNamelist      &IONS
 CellNamelist      &CELL
+ProjwfcNamelist   &PROJWFC
 AtomicSpeciesCard ATOMIC_SPECIES
 AtomicPositionsCard ATOMIC_POSITIONS  (can be populated from an ASE Atoms object)
 KPointsAutoCard   K_POINTS {automatic}  (ibrav-aware constructor)
@@ -31,11 +32,12 @@ from typing import Any
 
 # Reference dicts (schema: default, type, unit, description, valid)
 from pw_namelists import (
-    CONTROL  as _REF_CONTROL,
-    SYSTEM   as _REF_SYSTEM,
+    CONTROL   as _REF_CONTROL,
+    SYSTEM    as _REF_SYSTEM,
     ELECTRONS as _REF_ELECTRONS,
-    IONS     as _REF_IONS,
-    CELL     as _REF_CELL,
+    IONS      as _REF_IONS,
+    CELL      as _REF_CELL,
+    PROJWFC   as _REF_PROJWFC,
 )
 
 # ---------------------------------------------------------------------------
@@ -135,6 +137,11 @@ class IonsNamelist(_Namelist):
 class CellNamelist(_Namelist):
     _ref  = _REF_CELL
     _name = 'CELL'
+
+
+class ProjwfcNamelist(_Namelist):
+    _ref  = _REF_PROJWFC
+    _name = 'PROJWFC'
 
 
 # ---------------------------------------------------------------------------
@@ -339,16 +346,52 @@ class SystemNamelist(_Namelist):
         ----------
         atoms   : ase.Atoms
         ibrav   : int
-            0  → free cell (no celldm set; CELL_PARAMETERS card needed).
-            2  → FCC, only celldm(1)=a extracted.
-            4  → hexagonal, celldm(1)=a and celldm(3)=c/a extracted.
-            … any ibrav: a=celldm(1) is always extracted from atoms.cell;
-            higher celldm are extracted where the geometry uniquely defines them.
+            Bravais lattice index.  celldm extraction support per ibrav:
+
+            Implemented (celldm extracted automatically from atoms.cell):
+              0   free cell — no celldm set; caller must supply CellParametersCard.
+              1   cubic P (SC)          → celldm(1)
+              2   cubic F (FCC)         → celldm(1)  [ASE primitive |v|=a/√2, corrected]
+              3   cubic I (BCC)         → celldm(1)  [ASE primitive |v|=a√3/2, corrected]
+             -3   cubic I (BCC alt.)    → celldm(1)  [same correction as ibrav=3]
+              4   hexagonal / trig. P   → celldm(1), celldm(3)=c/a
+              5   trigonal R (3f. c)    → celldm(1), celldm(4)=cos(γ)
+             -5   trigonal R (3f. 111)  → celldm(1), celldm(4)=cos(γ)
+              6   tetragonal P          → celldm(1), celldm(3)=c/a
+              8   orthorhombic P        → celldm(1), celldm(2)=b/a, celldm(3)=c/a
+             12   monoclinic P (c)      → celldm(1..3), celldm(4)=cos(γ)
+            -12   monoclinic P (b)      → celldm(1..3), celldm(5)=cos(β)
+             14   triclinic             → celldm(1..6)
+
+            Not yet implemented (primitive vectors do not align with conventional
+            axes; celldm cannot be extracted from cell.lengths()/cell.angles()
+            without additional algebra — pass celldm_* explicitly via **kwargs):
+              7   tetragonal I (BCT)    needs celldm(1), celldm(3)
+              9   orthorhombic bco      needs celldm(1), celldm(2), celldm(3)
+             -9   orthorhombic bco alt. needs celldm(1), celldm(2), celldm(3)
+             91   orthorhombic A-type   needs celldm(1), celldm(2), celldm(3)
+             10   orthorhombic fco      needs celldm(1), celldm(2), celldm(3)
+             11   orthorhombic bco body needs celldm(1), celldm(2), celldm(3)
+             13   monoclinic bc (c)     needs celldm(1), celldm(2), celldm(3), celldm(4)
+            -13   monoclinic bc (b)     needs celldm(1), celldm(2), celldm(3), celldm(5)
+
         ecutwfc : float (Ry), optional
         ecutrho : float (Ry), optional
-        **kwargs : other &SYSTEM parameters
+        **kwargs : other &SYSTEM parameters (also used to pass celldm_* explicitly
+            for not-yet-implemented ibrav values)
         """
         from ase.data import atomic_numbers  # noqa: F401 — just to confirm ASE present
+
+        _NOT_IMPLEMENTED = {
+            7:   ('celldm(1), celldm(3)',                   'tetragonal I (BCT)'),
+            9:   ('celldm(1), celldm(2), celldm(3)',        'orthorhombic base-centered'),
+            -9:  ('celldm(1), celldm(2), celldm(3)',        'orthorhombic base-centered (alt.)'),
+            91:  ('celldm(1), celldm(2), celldm(3)',        'orthorhombic A-type'),
+            10:  ('celldm(1), celldm(2), celldm(3)',        'orthorhombic face-centered'),
+            11:  ('celldm(1), celldm(2), celldm(3)',        'orthorhombic body-centered'),
+            13:  ('celldm(1), celldm(2), celldm(3), celldm(4)', 'monoclinic base-centered (c)'),
+            -13: ('celldm(1), celldm(2), celldm(3), celldm(5)', 'monoclinic base-centered (b)'),
+        }
 
         cell = atoms.cell  # ASE Cell object (Angstrom)
         symbols = atoms.get_chemical_symbols()
@@ -369,6 +412,15 @@ class SystemNamelist(_Namelist):
             # No celldm — caller must provide a CellParametersCard
             return obj
 
+        if ibrav in _NOT_IMPLEMENTED:
+            needed, label = _NOT_IMPLEMENTED[ibrav]
+            raise NotImplementedError(
+                f"from_atoms: automatic celldm extraction not yet implemented for "
+                f"ibrav={ibrav} ({label}). The primitive vectors do not align with "
+                f"the conventional cell axes, so celldm cannot be read directly from "
+                f"cell.lengths(). Pass {needed} explicitly as keyword arguments."
+            )
+
         # Extract lattice parameters from the ASE cell (in bohr)
         lengths = [v * _ANG_TO_BOHR for v in cell.lengths()]  # a, b, c in bohr
         angles  = cell.angles()                                 # α, β, γ in degrees
@@ -379,7 +431,14 @@ class SystemNamelist(_Namelist):
         cd: dict[int, float] = {}
 
         if 1 in allowed:
-            cd[1] = a
+            if ibrav == 2:
+                # FCC: ASE primitive |v| = a_cubic/√2; QE celldm(1) = a_cubic
+                cd[1] = a * math.sqrt(2)
+            elif ibrav in (3, -3):
+                # BCC: ASE primitive |v| = a_cubic*√3/2; QE celldm(1) = a_cubic
+                cd[1] = a * 2 / math.sqrt(3)
+            else:
+                cd[1] = a
 
         # Ratios — only set if the ibrav actually uses them
         if 2 in allowed and a > 0:
@@ -394,9 +453,6 @@ class SystemNamelist(_Namelist):
             cd[4] = math.cos(math.radians(gamma))
         if ibrav == -12 and 5 in allowed:
             cd[5] = math.cos(math.radians(beta))
-        if ibrav in (13, -13):
-            if 4 in allowed:
-                cd[4] = math.cos(math.radians(gamma))
         if ibrav == 14:
             if 4 in allowed:
                 cd[4] = math.cos(math.radians(alpha))

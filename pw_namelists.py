@@ -916,6 +916,42 @@ PW_CARDS = {
 }
 
 
+PROJWFC = {
+    "prefix": {
+        "default": "pwscf", "type": "str", "unit": "",
+        "description": "Prefix matching the pw.x run whose wavefunctions are projected.",
+    },
+    "outdir": {
+        "default": "./", "type": "str", "unit": "",
+        "description": "Directory containing the pw.x save files.",
+    },
+    "filpdos": {
+        "default": "", "type": "str", "unit": "",
+        "description": "Prefix for PDOS output files (projwfc.x writes one file per orbital).",
+    },
+    "filproj": {
+        "default": "", "type": "str", "unit": "",
+        "description": "Output file prefix for raw |<phi|psi>|^2 projections (fat bands).",
+    },
+    "Emin": {
+        "default": -1000.0, "type": "float", "unit": "eV",
+        "description": "Lower bound of the energy window for the PDOS output grid.",
+    },
+    "Emax": {
+        "default": 1000.0, "type": "float", "unit": "eV",
+        "description": "Upper bound of the energy window for the PDOS output grid.",
+    },
+    "DeltaE": {
+        "default": 0.01, "type": "float", "unit": "eV",
+        "description": "Energy resolution of the PDOS output grid.",
+    },
+    "kresolveddos": {
+        "default": False, "type": "bool", "unit": "",
+        "description": "Write k-resolved PDOS (different from fat-band projections).",
+    },
+}
+
+
 def describe(namelist: dict, key: str) -> None:
     """Print a formatted description of a single parameter."""
     p = namelist[key]
