@@ -234,8 +234,9 @@ def plot_conv_thr_sweep(
     ax[0].set_title("Force vs SCF threshold")
 
     # --- Error metrics ---
+    # dF_mev_ang[-1] is zero by construction (reference point) — drop it to keep log scale valid
     ax[1].loglog(conv_thr_values, scf_corr_mev, "s-", label="SCF correction (QE estimate)")
-    ax[1].loglog(conv_thr_values, dF_mev_ang, "o--", label="|ΔFz| vs tightest")
+    ax[1].loglog(conv_thr_values[:-1], dF_mev_ang[:-1], "o--", label="|ΔFz| vs tightest")
     if force_threshold_mev_ang is not None:
         ax[1].axhline(force_threshold_mev_ang, ls="--", color="tab:red",
                       label=f"{force_threshold_mev_ang:g} meV/Å")
