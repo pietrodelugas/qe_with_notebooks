@@ -242,6 +242,27 @@ SYSTEM = {
         "description": "Kinetic-energy cutoff for wavefunctions (required).",
         "valid": [],
     },
+    "ecfixed" : {
+        "default": 0.0,
+        "type": "float",
+        "unit": "Ry",
+        "description": "Center of the gaussian penalty step added to kinetic energy, acts as effective fixed cutoff",
+        "valid":[],
+    },
+    "q2sigma": {
+        "default": 0.1,
+        "type": "float",
+        "description": "Width of the gaussian penalty step added to kinetic energy, width of the buffer of skin wavefunctions",
+        "unit": "Ry",
+        "valid":[], 
+    },
+    "qcutz":{
+        "default": 0.0,
+        "type": "float",
+        "unit": "Ry",
+        "description": "Height of the gaussian penalty step added to kinetic energy, how big the penalty is, must be large to be effective",
+        "valid": [],
+    },
     "ecutrho": {
         "default": None,
         "type": "float",
