@@ -108,13 +108,13 @@ def plot_k_convergence(
 def plot_force_ecut_convergence(
     ecut_x,
     fz,
-    dF_pct,
+    dF_mev_ang,
     ecut_t,
-    threshold_pct,
+    threshold_mev_ang,
     idx_conv=None,
     ecut_conv=None,
 ):
-    """Plot force, relative convergence error, and timing for a cutoff sweep."""
+    """Plot force, convergence error, and timing for a cutoff sweep."""
     fig, ax = plt.subplots(1, 3, figsize=(15, 4))
 
     ax[0].plot(ecut_x, fz, "o-")
@@ -122,14 +122,14 @@ def plot_force_ecut_convergence(
     ax[0].set_ylabel("Fz (eV/Ang)")
     ax[0].set_title("Force vs cutoff")
 
-    ax[1].semilogy(ecut_x, dF_pct, "o-")
-    ax[1].axhline(threshold_pct, ls="--", color="tab:red",
-                  label=f"{threshold_pct:g}%")
+    ax[1].semilogy(ecut_x, dF_mev_ang, "o-")
+    ax[1].axhline(threshold_mev_ang, ls="--", color="tab:red",
+                  label=f"{threshold_mev_ang:g} meV/Ang")
     if idx_conv is not None and ecut_conv is not None:
         ax[1].axvline(ecut_conv, ls="--", color="tab:green",
                       label=f"converged ~ {ecut_conv} Ry")
     ax[1].set_xlabel("ecutwfc (Ry)")
-    ax[1].set_ylabel("|Delta Fz| / |Fz_ref| (%)")
+    ax[1].set_ylabel("|Delta Fz| vs highest cutoff (meV/Ang)")
     ax[1].set_title("Convergence criterion")
     ax[1].legend()
 
