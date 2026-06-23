@@ -56,7 +56,7 @@ def build_ortho_input(a0_ang, x, ecutwfc, nk, prefix, pseudo_dir, outdir, pseudo
                                celldm_1=a0_ang * (1 + x) * _ANG_TO_BOHR,
                                celldm_2=(1 - x) / (1 + x),
                                celldm_3=1 / ((1 - x**2) * (1 + x)))
-    electrons = ElectronsNamelist()
+    electrons = ElectronsNamelist(conv_thr=1.e-9)
     ions      = IonsNamelist()
     species   = AtomicSpeciesCard.from_atoms(atoms, pseudos)
     positions = AtomicPositionsCard.from_atoms(atoms, units='crystal')
@@ -93,7 +93,7 @@ def build_mono_input(a0_ang, x, ecutwfc, nk, prefix, pseudo_dir, outdir, pseudos
                                celldm_2=1.0,
                                celldm_3=4 / ((4 - x**2) * np.sqrt(f)),
                                celldm_4=x / f)
-    electrons = ElectronsNamelist()
+    electrons = ElectronsNamelist(conv_thr=1.e-9)
     ions      = IonsNamelist()
     species   = AtomicSpeciesCard.from_atoms(atoms, pseudos)
     positions = AtomicPositionsCard.from_atoms(atoms, units='crystal')
