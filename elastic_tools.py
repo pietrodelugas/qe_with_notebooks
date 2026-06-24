@@ -30,7 +30,7 @@ EV_ANG3_TO_GPA = 160.2176   # 1 eV/Å³ in GPa
 # Input builders
 # ---------------------------------------------------------------------------
 
-def build_ortho_input(a0_ang, x, ecutwfc, nk, prefix, pseudo_dir, outdir, pseudos):
+def build_ortho_input(a0_ang, x, ecutwfc, nk, prefix, pseudo_dir, outdir, pseudos, **system_kwargs):
     """PWInput for orthorhombic strain at amplitude x (ibrav=8, relax).
 
     Strain tensor (volume-conserving):
@@ -55,7 +55,8 @@ def build_ortho_input(a0_ang, x, ecutwfc, nk, prefix, pseudo_dir, outdir, pseudo
     system    = SystemNamelist(ibrav=8, nat=8, ntyp=2, ecutwfc=ecutwfc,
                                celldm_1=a0_ang * (1 + x) * _ANG_TO_BOHR,
                                celldm_2=(1 - x) / (1 + x),
-                               celldm_3=1 / ((1 - x**2) * (1 + x)))
+                               celldm_3=1 / ((1 - x**2) * (1 + x)),
+                               **system_kwargs)
     electrons = ElectronsNamelist(conv_thr=1.e-9)
     ions      = IonsNamelist()
     species   = AtomicSpeciesCard.from_atoms(atoms, pseudos)
@@ -64,7 +65,7 @@ def build_ortho_input(a0_ang, x, ecutwfc, nk, prefix, pseudo_dir, outdir, pseudo
     return PWInput(control, system, electrons, species, positions, kpoints, ions=ions)
 
 
-def build_mono_input(a0_ang, x, ecutwfc, nk, prefix, pseudo_dir, outdir, pseudos):
+def build_mono_input(a0_ang, x, ecutwfc, nk, prefix, pseudo_dir, outdir, pseudos, **system_kwargs):
     """PWInput for monoclinic shear strain at amplitude x (ibrav=12, relax).
 
     Strain tensor (volume-conserving):
@@ -92,7 +93,8 @@ def build_mono_input(a0_ang, x, ecutwfc, nk, prefix, pseudo_dir, outdir, pseudos
                                celldm_1=a0_ang * np.sqrt(f) * _ANG_TO_BOHR,
                                celldm_2=1.0,
                                celldm_3=4 / ((4 - x**2) * np.sqrt(f)),
-                               celldm_4=x / f)
+                               celldm_4=x / f,
+                               **system_kwargs)
     electrons = ElectronsNamelist(conv_thr=1.e-9)
     ions      = IonsNamelist()
     species   = AtomicSpeciesCard.from_atoms(atoms, pseudos)
