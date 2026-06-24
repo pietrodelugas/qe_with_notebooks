@@ -258,12 +258,18 @@ class QERunner:
             tag, energy_ry, wall_s, nk_irr,
             and optionally force_z_ev_ang, pressure_kbar, scf_correction_ev_ang.
         """
-        return [
-            self._run_case(tag, inp, Path(run_dir), force_rerun,
-                           collect_force_stress, atom_index_1based,
-                           collect_pressure, collect_scf_correction)
-            for tag, inp in cases
-        ]
+        results = []
+        for i, (tag, inp) in enumerate(cases, 1):
+            data = self._run_case(tag, inp, Path(run_dir), force_rerun,
+                                  collect_force_stress, atom_index_1based,
+                                  collect_pressure, collect_scf_correction)
+            if np.isnan(data['wall_s']):
+                status = 'cached'
+            else:
+                status = f'{data["wall_s"]:.1f}s'
+            print(f'  [{i}/{len(cases)}] {tag}: {status}')
+            results.append(data)
+        return results
 
     def _run_case(self, tag, inp, run_dir, force_rerun, collect_force_stress,
                   atom_index_1based, collect_pressure=False, collect_scf_correction=False):
