@@ -6,6 +6,7 @@ Constants
     RY_TO_EV, BOHR_TO_ANG, RY_PER_BOHR_TO_EV_PER_ANG
 
 Parsers (pure functions — only need the pw.x stdout string)
+    extract_qe_error(text)
     parse_total_energy_ry(stdout)
     parse_irreducible_kpoints(stdout)
     parse_force_z_ev_ang(stdout, atom_index_1based)
@@ -44,6 +45,26 @@ RY_PER_BOHR_TO_EV_PER_ANG = RY_TO_EV / BOHR_TO_ANG
 # ---------------------------------------------------------------------------
 # Output parsers — pure functions; only need the pw.x stdout string
 # ---------------------------------------------------------------------------
+
+_QE_ERROR_FENCE = '%' * 80
+
+def extract_qe_error(text: str) -> str | None:
+    """Return the QE error block from pw.x output, or None if not present.
+
+    QE wraps fatal errors between two lines of 80 '%' characters:
+
+        %%%%...%%%%
+             Error in routine foo (1):
+             some explanation
+        %%%%...%%%%
+    """
+    lines = text.splitlines()
+    fences = [i for i, ln in enumerate(lines) if ln.strip() == _QE_ERROR_FENCE]
+    if len(fences) < 2:
+        return None
+    block = lines[fences[0] + 1 : fences[1]]
+    return '\n'.join(block).strip() or None
+
 
 def parse_total_energy_ry(stdout: str) -> float:
     """Return the final total energy in Ry from pw.x stdout.
@@ -267,9 +288,15 @@ class QERunner:
             wall_s = time.perf_counter() - t0
             out_file.write_text(result.stdout)
             if result.returncode != 0:
+                qe_msg = extract_qe_error(result.stdout) or extract_qe_error(result.stderr)
+                detail = (
+                    f'QE error:\n{qe_msg}'
+                    if qe_msg
+                    else f'Last stderr:\n{result.stderr[-1200:]}'
+                )
                 raise RuntimeError(
                     f'pw.x failed for {in_file.name} (return code {result.returncode})\n'
-                    f'Last stderr:\n{result.stderr[-1200:]}'
+                    + detail
                 )
             stdout = result.stdout
 
