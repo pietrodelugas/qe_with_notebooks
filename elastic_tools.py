@@ -128,8 +128,8 @@ def extract_c11_c12(coeff_ev, V0_conv_ang3, B_gpa):
     """Extract C₁₁ and C₁₂ (GPa) from the orthorhombic fit.
 
     Relations used:
-        ΔE = V₀ (C₁₁ − C₁₂) x²   →   C₁₁ − C₁₂ = coeff / V₀
-        B  = (C₁₁ + 2 C₁₂) / 3   →   C₁₁ + 2 C₁₂ = 3 B
+        ΔE = V₀ (C₁₁ − C₁₂) x²   →   α ≡ C₁₁ − C₁₂ = coeff / V₀
+        B  = (C₁₁ + 2 C₁₂) / 3   →   C₁₁ = B + 2α/3,  C₁₂ = B − α/3
 
     Parameters
     ----------
@@ -139,7 +139,7 @@ def extract_c11_c12(coeff_ev, V0_conv_ang3, B_gpa):
     B_gpa         : float — bulk modulus from BM EOS [GPa]
     """
     C11_minus_C12 = coeff_ev / V0_conv_ang3 * EV_ANG3_TO_GPA
-    C11 = (C11_minus_C12 + 3 * B_gpa) / 3
+    C11 = (2 * C11_minus_C12 + 3 * B_gpa) / 3
     C12 = (3 * B_gpa - C11_minus_C12) / 3
     return C11, C12
 
