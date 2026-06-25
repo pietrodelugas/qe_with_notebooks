@@ -46,20 +46,20 @@ RY_PER_BOHR_TO_EV_PER_ANG = RY_TO_EV / BOHR_TO_ANG
 # Output parsers — pure functions; only need the pw.x stdout string
 # ---------------------------------------------------------------------------
 
-_QE_ERROR_FENCE = '%' * 80
+def _is_qe_fence(line: str) -> bool:
+    s = line.strip()
+    return len(s) >= 60 and s == '%' * len(s)
+
 
 def extract_qe_error(text: str) -> str | None:
     """Return the QE error block from pw.x output, or None if not present.
 
-    QE wraps fatal errors between two lines of 80 '%' characters:
-
-        %%%%...%%%%
-             Error in routine foo (1):
-             some explanation
-        %%%%...%%%%
+    QE wraps fatal errors between two lines of '%' characters (the exact
+    count varies by QE version — typically 72 or 78).  Any all-'%' line
+    of at least 60 characters is treated as a fence.
     """
     lines = text.splitlines()
-    fences = [i for i, ln in enumerate(lines) if ln.strip() == _QE_ERROR_FENCE]
+    fences = [i for i, ln in enumerate(lines) if _is_qe_fence(ln)]
     if len(fences) < 2:
         return None
     block = lines[fences[0] + 1 : fences[1]]
@@ -260,6 +260,8 @@ class QERunner:
         """
         results = []
         for i, (tag, inp) in enumerate(cases, 1):
+            prefix = f'  [{i}/{len(cases)}] {tag}'
+            print(f'{prefix}: running …', end='\r', flush=True)
             data = self._run_case(tag, inp, Path(run_dir), force_rerun,
                                   collect_force_stress, atom_index_1based,
                                   collect_pressure, collect_scf_correction)
@@ -267,7 +269,7 @@ class QERunner:
                 status = 'cached'
             else:
                 status = f'{data["wall_s"]:.1f}s'
-            print(f'  [{i}/{len(cases)}] {tag}: {status}')
+            print(f'{prefix}: {status}    ')
             results.append(data)
         return results
 
@@ -295,11 +297,12 @@ class QERunner:
             out_file.write_text(result.stdout)
             if result.returncode != 0:
                 qe_msg = extract_qe_error(result.stdout) or extract_qe_error(result.stderr)
-                detail = (
-                    f'QE error:\n{qe_msg}'
-                    if qe_msg
-                    else f'Last stderr:\n{result.stderr[-1200:]}'
-                )
+                if qe_msg:
+                    detail = f'QE error:\n{qe_msg}'
+                elif result.stderr.strip():
+                    detail = f'Last stderr:\n{result.stderr[-1200:]}'
+                else:
+                    detail = f'Last stdout:\n{result.stdout[-1200:]}'
                 raise RuntimeError(
                     f'pw.x failed for {in_file.name} (return code {result.returncode})\n'
                     + detail
