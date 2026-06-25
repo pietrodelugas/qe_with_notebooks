@@ -28,6 +28,7 @@ Design principles
 from __future__ import annotations
 import copy
 import math
+from pathlib import Path
 from typing import Any
 
 # Reference dicts (schema: default, type, unit, description, valid)
@@ -88,6 +89,8 @@ class _Namelist:
 
     def update(self, **kwargs) -> '_Namelist':
         for k, v in kwargs.items():
+            if isinstance(v, Path) and self._ref.get(k, {}).get('type') == 'path':
+                v = str(v)
             _validate(self._ref, k, v)
             self._params[k] = v
         return self
@@ -499,7 +502,7 @@ class AtomicSpeciesCard:
         self._species: list[tuple] = []  # (label, mass, pseudo)
 
     def add(self, label: str, mass: float, pseudo: str) -> 'AtomicSpeciesCard':
-        self._species.append((label, float(mass), pseudo))
+        self._species.append((label, float(mass), str(pseudo) if isinstance(pseudo, Path) else pseudo))
         return self
 
     @classmethod

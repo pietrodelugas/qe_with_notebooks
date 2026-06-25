@@ -33,6 +33,7 @@ MODULES=(
 TUTORIAL_NOTEBOOKS=(
     qe_pw_input_intro
     qe_convergence_tests
+    qe_scf_conv_thr
     qe_eos_bulkmodulus
     qe_elastic_constants
     qe_bandstructure
