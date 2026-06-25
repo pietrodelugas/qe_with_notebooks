@@ -27,6 +27,8 @@ MODULES=(
     eos_plotting.py
     elastic_tools.py
     bandstructure_tools.py
+    ph_input.py
+    ph_namelists.py
     postproc_namelists.py
 )
 
