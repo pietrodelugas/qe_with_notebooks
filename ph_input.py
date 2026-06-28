@@ -37,7 +37,7 @@ import copy
 import os
 from typing import Any
 
-from ph_namelists import PH_INPUTPH, Q2R_INPUT, MATDYN_INPUT
+from ph_namelists import PH_INPUTPH, Q2R_INPUT, MATDYN_INPUT, DYNMAT_INPUT
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -860,3 +860,94 @@ class PhononWorkflow:
             parts.append(f'  matdyn_dos  = {self.matdyn_dos!r}')
         parts.append(')')
         return '\n'.join(parts)
+
+
+# ============================================================================
+# DynmatInput  — /input/ namelist for dynmat.x
+# ============================================================================
+
+class DynmatInput(_Namelist):
+    """
+    /input/ namelist for dynmat.x.
+
+    Usage
+    -----
+    # Minimal — just read and diagonalise:
+    dm = DynmatInput('si.dyn', asr='crystal')
+
+    # With LO-TO splitting along [1 0 0]:
+    dm = DynmatInput('si.dyn', asr='crystal', q=(0.1, 0, 0))
+
+    # Compute ionic dielectric permittivity:
+    dm = DynmatInput('si.dyn', asr='crystal', q=(0.1, 0, 0), lperm=True)
+
+    Parameters stored in self._params are rendered to the /input/ block.
+    The Fortran array variables q and amass are written as indexed elements:
+        q(1) = …  q(2) = …  q(3) = …
+        amass(1) = …  amass(2) = …  …
+    """
+
+    _ref  = DYNMAT_INPUT
+    _name = 'input'
+
+    def __init__(self,
+                 fildyn: str,
+                 asr:    str  = 'no',
+                 q:      tuple | list | None = None,
+                 lperm:  bool = False,
+                 **kwargs):
+        """
+        Parameters
+        ----------
+        fildyn : str
+            Dynamical matrix file (root name for ldisp runs; exact name for
+            single-q runs).
+        asr : str
+            Acoustic sum rule: 'no', 'simple', 'crystal', 'one-dim', 'zero-dim'.
+        q : (qx, qy, qz) | None
+            LO-TO splitting direction in Cartesian 2π/a units.  If None or
+            (0, 0, 0), no non-analytic correction is applied (TO frequencies
+            only).  Written as q(1) = …, q(2) = …, q(3) = … in the namelist.
+        lperm : bool
+            Compute dielectric permittivity tensor (ε∞ + ionic correction).
+            Requires ε∞ and Z* to be stored in fildyn.
+        **kwargs
+            Any other /input/ parameters (filout, filmol, filxsf, fileig,
+            axis, lplasma, loto_2d, amass, remove_interaction_blocks).
+        """
+        super().__init__(fildyn=fildyn, asr=asr, **kwargs)
+        if q is not None:
+            q = list(q)
+            if len(q) != 3:
+                raise ValueError('q must be a 3-vector (qx, qy, qz)')
+            self._params['q'] = q
+        if lperm:
+            self._params['lperm'] = True
+
+    # =========================================================================
+    # Rendering  — override to handle Fortran array-indexed variables
+    # =========================================================================
+
+    def to_string(self) -> str:
+        lines = [f'&{self._name}']
+        for k, v in self._params.items():
+            if k == 'q':
+                for i, qi in enumerate(v, 1):
+                    lines.append(f'  q({i}) = {_fmt(qi)}')
+            elif k == 'amass':
+                for i, mi in enumerate(list(v), 1):
+                    lines.append(f'  amass({i}) = {_fmt(mi)}')
+            else:
+                lines.append(f'  {k} = {_fmt(v)}')
+        lines.append('/')
+        return '\n'.join(lines)
+
+    def __repr__(self) -> str:
+        q = self._params.get('q')
+        q_str = f'({", ".join(str(x) for x in q)})' if q else 'None'
+        return (
+            f"DynmatInput(fildyn={self._params.get('fildyn')!r}, "
+            f"asr={self._params.get('asr')!r}, "
+            f"q={q_str}, "
+            f"lperm={self._params.get('lperm', False)})"
+        )

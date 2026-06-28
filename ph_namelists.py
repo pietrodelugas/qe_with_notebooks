@@ -885,12 +885,151 @@ MATDYN_NAMELISTS = {"INPUT": MATDYN_INPUT}
 
 
 # ============================================================================
+# dynmat.x  — namelist /input/
+# ============================================================================
+
+DYNMAT_INPUT = {
+    "fildyn": {
+        "default": "matdyn",
+        "type": "str",
+        "unit": "",
+        "description": (
+            "Input file containing the dynamical matrix produced by ph.x. "
+            "For ldisp runs this is the root name (files are <fildyn>1, <fildyn>2, …)."
+        ),
+        "valid": [],
+    },
+    "asr": {
+        "default": "no",
+        "type": "str",
+        "unit": "",
+        "description": (
+            "Acoustic sum rule imposed on the force constants before diagonalisation:\n"
+            "  'no'       = none\n"
+            "  'simple'   = diagonal correction of the self-force constants\n"
+            "  'crystal'  = 3 translational ASR in crystal coordinates\n"
+            "  'one-dim'  = 3 translational + 1 rotational ASR (1D systems)\n"
+            "  'zero-dim' = 3 translational + 3 rotational ASR (molecules)"
+        ),
+        "valid": ["no", "simple", "crystal", "one-dim", "zero-dim"],
+    },
+    "axis": {
+        "default": 3,
+        "type": "int",
+        "unit": "",
+        "description": (
+            "Cartesian axis index (1=x, 2=y, 3=z) used as the periodicity direction "
+            "when asr='one-dim'."
+        ),
+        "valid": [1, 2, 3],
+    },
+    "q": {
+        "default": None,
+        "type": "list[float]",
+        "unit": "2π/a (Cartesian)",
+        "description": (
+            "Direction of the LO-TO splitting: phonon wave-vector (qx, qy, qz) in "
+            "Cartesian coordinates (units of 2π/a). Written as q(1), q(2), q(3) in "
+            "the namelist. Non-zero values activate the non-analytic correction and "
+            "split the LO and TO branches at Γ. Default: (0, 0, 0) = no splitting."
+        ),
+        "valid": [],
+    },
+    "amass": {
+        "default": None,
+        "type": "list[float]",
+        "unit": "amu",
+        "description": (
+            "Atomic masses for each species, in amu.  Written as amass(1), amass(2), … "
+            "in the namelist.  If omitted, masses are read from the dynamical matrix file."
+        ),
+        "valid": [],
+    },
+    "lperm": {
+        "default": False,
+        "type": "bool",
+        "unit": "",
+        "description": (
+            "If True, compute and print the Γ-point mode contributions to the "
+            "dielectric permittivity tensor (ε∞ and the ionic/static correction). "
+            "Requires ε∞ and Z* to be present in fildyn."
+        ),
+        "valid": [],
+    },
+    "lplasma": {
+        "default": False,
+        "type": "bool",
+        "unit": "",
+        "description": (
+            "If True, compute and print mode effective plasma frequencies. "
+            "Automatically activates lperm."
+        ),
+        "valid": [],
+    },
+    "filout": {
+        "default": "dynmat.out",
+        "type": "str",
+        "unit": "",
+        "description": (
+            "Output file for phonon frequencies and (mass-weighted, non-orthogonal) "
+            "eigenvectors. Written in a plain-text format."
+        ),
+        "valid": [],
+    },
+    "filmol": {
+        "default": "dynmat.mold",
+        "type": "str",
+        "unit": "",
+        "description": "Output file in Molden format (for visualisation of normal modes).",
+        "valid": [],
+    },
+    "filxsf": {
+        "default": "dynmat.axsf",
+        "type": "str",
+        "unit": "",
+        "description": "Output file in animated XSF format (for XCrySDen visualisation).",
+        "valid": [],
+    },
+    "fileig": {
+        "default": "",
+        "type": "str",
+        "unit": "",
+        "description": (
+            "Output file for phonon frequencies and orthonormal eigenvectors. "
+            "Empty string (default) means no such file is written."
+        ),
+        "valid": [],
+    },
+    "loto_2d": {
+        "default": False,
+        "type": "bool",
+        "unit": "",
+        "description": "Use 2D LO-TO splitting treatment for polar 2D materials.",
+        "valid": [],
+    },
+    "remove_interaction_blocks": {
+        "default": False,
+        "type": "bool",
+        "unit": "",
+        "description": (
+            "Remove off-diagonal blocks of the dynamical matrix between inequivalent "
+            "Wyckoff positions before diagonalisation (diagnostic use)."
+        ),
+        "valid": [],
+    },
+}
+
+DYNMAT_NAMELISTS = {"input": DYNMAT_INPUT}
+
+
+# ============================================================================
 # Convenience bundle
 # ============================================================================
 PH_WORKFLOW_NAMELISTS = {
     "ph.x":     {"namelists": PH_NAMELISTS},
     "q2r.x":    {"namelists": Q2R_NAMELISTS},
     "matdyn.x": {"namelists": MATDYN_NAMELISTS},
+    "dynmat.x": {"namelists": DYNMAT_NAMELISTS},
 }
 
 
