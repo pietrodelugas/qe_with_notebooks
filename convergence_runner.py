@@ -18,11 +18,16 @@ Convergence criterion (pure function)
 
 Runner class
     QERunner(pw_cmd)
-        .run_sweep(cases, run_dir, force_rerun=False,
-                   collect_force_stress=False, atom_index_1based=1,
-                   collect_scf_correction=False)
+        .run_one(tag, inp, run_dir, force_rerun=False)
+        .run_sweep(cases, run_dir, force_rerun=False)
 
         cases is a list of (tag, PWInput) pairs built in the notebook.
+        Both methods return result dicts with keys:
+            tag, energy_ry, wall_s, nk_irr,
+            forces_ev_ang        — ndarray (nat, 3) eV/Å, or None
+            stress_kbar          — ndarray (3, 3) kbar, or None
+            pressure_kbar        — float kbar, or None
+            scf_corrections_ev_ang — ndarray (nat, 3) eV/Å, or None
 """
 
 from __future__ import annotations
@@ -188,6 +193,77 @@ def parse_stress_zz_kbar(stdout: str) -> float:
     return float(nums[-1])
 
 
+def parse_forces_ev_ang(stdout: str):
+    """Return all atomic forces as an ndarray of shape (nat, 3) in eV/Å.
+
+    For relax/vc-relax, returns forces from the final ionic step.
+    Returns None if the forces block is absent.
+    """
+    sections = re.split(r'Forces acting on atoms.*\n', stdout, flags=re.IGNORECASE)
+    if len(sections) < 2:
+        return None
+    rows = []
+    for line in sections[-1].splitlines():
+        hit = re.match(
+            r'\s*atom\s+\d+\s+type\s+\d+\s+force\s*='
+            r'\s*([-+0-9.Ee]+)\s+([-+0-9.Ee]+)\s+([-+0-9.Ee]+)',
+            line,
+        )
+        if hit:
+            rows.append([float(hit.group(k)) for k in (1, 2, 3)])
+        elif rows:
+            break
+    return np.array(rows) * RY_PER_BOHR_TO_EV_PER_ANG if rows else None
+
+
+def parse_stress_tensor_kbar(stdout: str):
+    """Return the full stress tensor as an ndarray of shape (3, 3) in kbar.
+
+    pw.x prints each stress row as 6 numbers: 3 in Ry/bohr³ then 3 in kbar.
+    This function extracts the kbar columns.  For relax/vc-relax, returns the
+    tensor from the final ionic step.  Returns None if no stress block is found
+    (i.e. ``tstress = .true.`` was not set).
+    """
+    headers = list(re.finditer(
+        r'total\s+stress\s+\(Ry/bohr\*\*3\).*\n', stdout, flags=re.IGNORECASE
+    ))
+    if not headers:
+        return None
+    pos = headers[-1].end()
+    rows = []
+    for line in stdout[pos:].splitlines():
+        nums = re.findall(r'[-+]?\d*\.?\d+(?:[Ee][-+]?\d+)?', line)
+        if len(nums) == 6:
+            rows.append([float(nums[3]), float(nums[4]), float(nums[5])])
+            if len(rows) == 3:
+                break
+        elif rows:
+            break
+    return np.array(rows) if len(rows) == 3 else None
+
+
+def parse_scf_corrections_ev_ang(stdout: str):
+    """Return SCF force corrections as an ndarray of shape (nat, 3) in eV/Å.
+
+    Requires ``verbosity = 'medium'`` or ``'high'`` in the CONTROL namelist.
+    For relax/vc-relax, returns corrections from the final ionic step.
+    Returns None if the block is absent.
+    """
+    sections = re.split(r'The SCF correction term to forces\s*\n', stdout)
+    if len(sections) < 2:
+        return None
+    rows = []
+    for line in sections[-1].splitlines():
+        hit = re.search(
+            r'force\s*=\s*([-+0-9.Ee]+)\s+([-+0-9.Ee]+)\s+([-+0-9.Ee]+)', line
+        )
+        if hit:
+            rows.append([float(hit.group(k)) for k in (1, 2, 3)])
+        elif rows:
+            break
+    return np.array(rows) * RY_PER_BOHR_TO_EV_PER_ANG if rows else None
+
+
 # ---------------------------------------------------------------------------
 # Convergence criterion — pure function
 # ---------------------------------------------------------------------------
@@ -220,25 +296,53 @@ class QERunner:
     pw_cmd : list[str]
         Command prefix to invoke pw.x, e.g. ['/path/to/pw.x'].
 
-    Usage
-    -----
-    >>> runner = QERunner(pw_cmd)
-    >>> results = runner.run_sweep(cases, run_dir, force_rerun=False)
+    Both run_one() and run_sweep() return result dicts with keys
+    ---------------------------------------------------------------
+    tag                    : str
+    energy_ry              : float            — total energy in Ry
+    wall_s                 : float            — wall time in s (nan if cached)
+    nk_irr                 : int | None       — irreducible k-points
+    forces_ev_ang          : ndarray (nat,3)  — atomic forces in eV/Å, or None
+    stress_kbar            : ndarray (3,3)    — stress tensor in kbar, or None
+    pressure_kbar          : float | None     — hydrostatic pressure in kbar, or None
+    scf_corrections_ev_ang : ndarray (nat,3)  — SCF force corrections in eV/Å, or None
+
+    stress_kbar / pressure_kbar require ``tstress = .true.`` in the pw.x input.
+    scf_corrections_ev_ang requires ``verbosity = 'medium'`` or ``'high'``.
     """
 
     def __init__(self, pw_cmd):
         self.pw_cmd = list(pw_cmd)
 
-    def run_sweep(
-        self,
-        cases,
-        run_dir,
-        force_rerun=False,
-        collect_force_stress=False,
-        atom_index_1based=1,
-        collect_pressure=False,
-        collect_scf_correction=False,
-    ):
+    def run_one(self, tag, inp, run_dir, force_rerun=False):
+        """Run a single pw.x calculation and return a result dict.
+
+        Parameters
+        ----------
+        tag : str
+            Names the .in/.out files written to run_dir.
+        inp : PWInput
+            Complete pw.x input object.
+        run_dir : Path
+            Directory for input/output files.
+        force_rerun : bool
+            If True, overwrite an existing output file and rerun.
+
+        Returns
+        -------
+        dict — see class docstring for keys.
+        """
+        _print(f'  {tag}: running …')
+        try:
+            data = self._run_case(tag, inp, Path(run_dir), force_rerun)
+        except Exception:
+            _print(f'  {tag}: FAILED')
+            raise
+        status = 'cached' if np.isnan(data['wall_s']) else f'{data["wall_s"]:.1f}s'
+        _print(f'  {tag}: {status}')
+        return data
+
+    def run_sweep(self, cases, run_dir, force_rerun=False):
         """Run all cases and return a list of result dicts.
 
         Parameters
@@ -249,45 +353,26 @@ class QERunner:
             Directory for input/output files.
         force_rerun : bool
             If True, overwrite existing output files and rerun.
-        collect_force_stress : bool
-            If True, also parse Fz from each output.
-        atom_index_1based : int
-            Atom number (1-based) for force parsing.
-        collect_pressure : bool
-            If True, parse the hydrostatic pressure P (kbar) from the stress block.
-            Requires ``tstress = .true.`` in the pw.x input.
-        collect_scf_correction : bool
-            If True, parse the mean absolute per-component SCF force correction
-            (eV/Ang) from the verbose force block.  Requires ``verbosity = 'medium'``
-            or ``'high'`` in the CONTROL namelist.
 
         Returns
         -------
-        list of dicts — one per case, with keys:
-            tag, energy_ry, wall_s, nk_irr,
-            and optionally force_z_ev_ang, pressure_kbar, scf_correction_ev_ang.
+        list of dicts — one per case; see class docstring for keys.
         """
         results = []
         for i, (tag, inp) in enumerate(cases, 1):
             prefix = f'  [{i}/{len(cases)}] {tag}'
             _print(f'{prefix}: running …')
             try:
-                data = self._run_case(tag, inp, Path(run_dir), force_rerun,
-                                      collect_force_stress, atom_index_1based,
-                                      collect_pressure, collect_scf_correction)
+                data = self._run_case(tag, inp, Path(run_dir), force_rerun)
             except Exception:
                 _print(f'{prefix}: FAILED')
                 raise
-            if np.isnan(data['wall_s']):
-                status = 'cached'
-            else:
-                status = f'{data["wall_s"]:.1f}s'
+            status = 'cached' if np.isnan(data['wall_s']) else f'{data["wall_s"]:.1f}s'
             _print(f'{prefix}: {status}')
             results.append(data)
         return results
 
-    def _run_case(self, tag, inp, run_dir, force_rerun, collect_force_stress,
-                  atom_index_1based, collect_pressure=False, collect_scf_correction=False):
+    def _run_case(self, tag, inp, run_dir, force_rerun):
         in_file  = run_dir / f'{tag}.in'
         out_file = run_dir / f'{tag}.out'
 
@@ -325,16 +410,14 @@ class QERunner:
                 )
             stdout = result.stdout
 
-        data = {
-            'tag': tag,
-            'energy_ry': parse_total_energy_ry(stdout),
-            'wall_s': wall_s,
-            'nk_irr': parse_irreducible_kpoints(stdout),
+        stress = parse_stress_tensor_kbar(stdout)
+        return {
+            'tag':                    tag,
+            'energy_ry':              parse_total_energy_ry(stdout),
+            'wall_s':                 wall_s,
+            'nk_irr':                 parse_irreducible_kpoints(stdout),
+            'forces_ev_ang':          parse_forces_ev_ang(stdout),
+            'stress_kbar':            stress,
+            'pressure_kbar':          parse_hydrostatic_pressure_kbar(stdout) if stress is not None else None,
+            'scf_corrections_ev_ang': parse_scf_corrections_ev_ang(stdout),
         }
-        if collect_force_stress:
-            data['force_z_ev_ang'] = parse_force_z_ev_ang(stdout, atom_index_1based)
-        if collect_pressure:
-            data['pressure_kbar'] = parse_hydrostatic_pressure_kbar(stdout)
-        if collect_scf_correction:
-            data['scf_correction_ev_ang'] = parse_mean_abs_scf_correction_ev_ang(stdout)
-        return data
