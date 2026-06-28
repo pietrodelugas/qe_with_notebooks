@@ -8,9 +8,9 @@ Read this before creating any Quantum ESPRESSO tutorial notebook for Google Cola
 - Colab runs **Python 3.12**; `qe_env` uses Python 3.11
 - `qe_env` is saved as a tar archive on Google Drive at:
   `MyDrive/conda_envs/qe_env.tar.gz`
-- `ovito` and `scipy` must be installed via **pip** (not conda) because the conda
-  versions are compiled for Python 3.11 and their C extensions are ABI-incompatible
-  with Colab's Python 3.12 interpreter
+- `scipy` must be installed via **pip** (not conda) because the conda version
+  is compiled for Python 3.11 and its C extensions are ABI-incompatible with
+  Colab's Python 3.12 interpreter
 
 ## Every tutorial notebook must start with these three cells
 
@@ -102,16 +102,15 @@ for sp in glob.glob('/usr/local/envs/qe_env/lib/python*/site-packages'):
         print(f'✅ Added to sys.path: {sp}')
 
 # ── Install packages with C extensions via pip (conda 3.11 .so files incompatible with Colab 3.12) ──
-for pkg in ['scipy', 'ovito']:
-    print(f'Installing {pkg} via pip …')
-    subprocess.check_call(
-        [sys.executable, '-m', 'pip', 'install', '-q', pkg],
-        stdout=subprocess.DEVNULL
-    )
+print('Installing scipy via pip …')
+subprocess.check_call(
+    [sys.executable, '-m', 'pip', 'install', '-q', 'scipy'],
+    stdout=subprocess.DEVNULL
+)
 
 # ── Verify ────────────────────────────────────────────────────────────────────
 print('\nPackage availability:')
-for pkg in ['numpy', 'matplotlib', 'ase', 'scipy', 'ovito']:
+for pkg in ['numpy', 'matplotlib', 'ase', 'scipy']:
     try:
         __import__(pkg)
         print(f'  ✅  {pkg}')
