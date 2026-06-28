@@ -584,6 +584,7 @@ class AtomicPositionsCard:
 
     @classmethod
     def from_atoms(cls, atoms, units: str = 'angstrom',
+                   ibrav: int = None,
                    constraints: dict = None) -> 'AtomicPositionsCard':
         """
         Build from an ASE Atoms object.
@@ -592,10 +593,13 @@ class AtomicPositionsCard:
         ----------
         atoms       : ase.Atoms
         units       : 'angstrom' (default), 'crystal', 'bohr', or 'alat'
+        ibrav       : QE Bravais lattice index.  Required when units='alat':
+                      QE's alat is celldm(1) (the conventional cell parameter),
+                      which differs from |a1| for ibrav=2 (FCC, factor √2) and
+                      ibrav=3/-3 (BCC, factor 2/√3).  Ignored for other units.
         constraints : dict {atom_index: (if1,if2,if3)} for fixed atoms.
                       Default: all atoms free.
         """
-        import numpy as np
         if constraints is None:
             constraints = {}
 
@@ -609,9 +613,23 @@ class AtomicPositionsCard:
         elif units == 'crystal':
             coords = atoms.get_scaled_positions()   # fractional
         elif units == 'alat':
-            # Cartesian in units of a = |a1|
-            a = atoms.cell.lengths()[0] * _ANG_TO_BOHR  # bohr
-            coords = atoms.get_positions() * _ANG_TO_BOHR / a
+            if ibrav is None:
+                raise ValueError(
+                    "ibrav is required when units='alat'. "
+                    "QE's alat is celldm(1) (the conventional cell parameter), "
+                    "not |a1|, and the correction depends on the Bravais lattice."
+                )
+            # QE alat = celldm(1) = conventional cell parameter, not |a1|.
+            # For ibrav=2 (FCC): |a1| = a/√2  → alat = |a1|·√2
+            # For ibrav=3/-3 (BCC): |a1| = a√3/2 → alat = |a1|·2/√3
+            a1_len = atoms.cell.lengths()[0] * _ANG_TO_BOHR  # bohr
+            if ibrav == 2:
+                alat = a1_len * math.sqrt(2)
+            elif ibrav in (3, -3):
+                alat = a1_len * 2 / math.sqrt(3)
+            else:
+                alat = a1_len
+            coords = atoms.get_positions() * _ANG_TO_BOHR / alat
         else:
             raise ValueError(f"units '{units}' not supported in from_atoms")
 
@@ -991,7 +1009,7 @@ def pw_input_from_atoms(atoms,
     electrons = ElectronsNamelist()
 
     species_card   = AtomicSpeciesCard.from_atoms(atoms, pseudos)
-    positions_card = AtomicPositionsCard.from_atoms(atoms, units=pos_units)
+    positions_card = AtomicPositionsCard.from_atoms(atoms, units=pos_units, ibrav=ibrav)
 
     cell_card = CellParametersCard.from_atoms(atoms) if ibrav == 0 else None
 
