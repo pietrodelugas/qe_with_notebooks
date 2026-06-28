@@ -712,62 +712,104 @@ _KMESH_ARG_DOC = {
     'nk3': 'Grid size along b3 (out-of-plane for hex/tet).',
 }
 
+# Accepted shift kwargs mirror the mesh kwargs: sk follows the same symmetry as nk.
+_IBRAV_KSHIFT_ARGS = {
+    0:  ('sk1', 'sk2', 'sk3'),
+    1:  ('sk',),
+    2:  ('sk',),
+    3:  ('sk',),
+   -3:  ('sk',),
+    4:  ('sk1', 'sk3'),
+    5:  ('sk',),
+   -5:  ('sk',),
+    6:  ('sk1', 'sk3'),
+    7:  ('sk1', 'sk3'),
+    8:  ('sk1', 'sk2', 'sk3'),
+    9:  ('sk1', 'sk2', 'sk3'),
+   -9:  ('sk1', 'sk2', 'sk3'),
+   91:  ('sk1', 'sk2', 'sk3'),
+   10:  ('sk1', 'sk2', 'sk3'),
+   11:  ('sk1', 'sk2', 'sk3'),
+   12:  ('sk1', 'sk2', 'sk3'),
+  -12:  ('sk1', 'sk2', 'sk3'),
+   13:  ('sk1', 'sk2', 'sk3'),
+  -13:  ('sk1', 'sk2', 'sk3'),
+   14:  ('sk1', 'sk2', 'sk3'),
+}
+
+_KSHIFT_ARG_DOC = {
+    'sk' : 'Shift flag for all directions (0=Γ-centred, 1=off-Γ); mirrors nk symmetry.',
+    'sk1': 'Shift flag along b1 (and b2 for hex/tet, where sk2 follows sk1).',
+    'sk2': 'Shift flag along b2.',
+    'sk3': 'Shift flag along b3.',
+}
+
 
 class KPointsAutoCard:
     """
     K_POINTS {automatic} card with ibrav-aware constructor.
 
-    The accepted keyword arguments depend on ibrav:
+    Mesh and shift keyword arguments mirror the lattice symmetry — the same
+    constraint applied to nk is applied to sk:
 
-    Cubic  (ibrav=1,2,3,-3)   : KPointsAutoCard(ibrav, nk=8)
-    Hex/ST/BCT (ibrav=4,6,7)  : KPointsAutoCard(ibrav, nk1=8, nk3=6)
-    Rhombohedal (ibrav=5,-5)  : KPointsAutoCard(ibrav, nk=8)
-    Ortho/Mono/Tri (ibrav≥8)  : KPointsAutoCard(ibrav, nk1=6, nk2=8, nk3=4)
-    Free cell (ibrav=0)        : KPointsAutoCard(ibrav, nk1=6, nk2=6, nk3=6)
+    Cubic  (ibrav=1,2,3,-3)  : KPointsAutoCard(ibrav, nk=8)
+                                  shift: sk=1  (all three equal)
+    Hex/ST/BCT (ibrav=4,6,7) : KPointsAutoCard(ibrav, nk1=8, nk3=6)
+                                  shift: sk1=1, sk3=0  (sk2 follows sk1)
+    Rhombohedral (ibrav=5,-5): KPointsAutoCard(ibrav, nk=8)
+                                  shift: sk=1
+    Ortho/Mono/Tri (ibrav≥8) : KPointsAutoCard(ibrav, nk1=6, nk2=8, nk3=4)
+                                  shift: sk1=1, sk2=1, sk3=0
+    Free cell (ibrav=0)       : KPointsAutoCard(ibrav, nk1=6, nk2=6, nk3=6)
+                                  shift: sk1=1, sk2=1, sk3=1
 
-    Shift flags sk1/sk2/sk3:
+    Shift flags:
         1 = shift the grid by half a step (off-Γ)
         0 = Γ-centred (default)
 
     Examples
     --------
-    >>> k = KPointsAutoCard(2, nk=8)          # FCC, 8×8×8
-    >>> k = KPointsAutoCard(4, nk1=8, nk3=6) # hexagonal, 8×8×6
-    >>> k = KPointsAutoCard(8, nk1=6, nk2=8, nk3=4)  # orthorhombic
-    >>> k = KPointsAutoCard(2, nk=8, sk1=1, sk2=1, sk3=1)  # shifted FCC
+    >>> k = KPointsAutoCard(2, nk=8)              # FCC, 8×8×8, Γ-centred
+    >>> k = KPointsAutoCard(2, nk=8, sk=1)        # FCC, 8×8×8, shifted
+    >>> k = KPointsAutoCard(4, nk1=8, nk3=6)      # hexagonal, 8×8×6
+    >>> k = KPointsAutoCard(4, nk1=8, nk3=6, sk1=1, sk3=0)  # hex, in-plane shifted
+    >>> k = KPointsAutoCard(8, nk1=6, nk2=8, nk3=4, sk1=1, sk2=1, sk3=0)
     """
 
-    def __init__(self, ibrav: int, sk1: int = 0, sk2: int = 0, sk3: int = 0, **kwargs):
+    def __init__(self, ibrav: int, **kwargs):
         if ibrav not in _IBRAV_INFO:
             raise ValueError(f'ibrav={ibrav} not recognised.')
 
         self._ibrav = ibrav
-        self.sk1 = sk1
-        self.sk2 = sk2
-        self.sk3 = sk3
+        accepted_nk = _IBRAV_KMESH_ARGS[ibrav]
+        accepted_sk = _IBRAV_KSHIFT_ARGS[ibrav]
+        all_accepted = set(accepted_nk) | set(accepted_sk)
 
-        accepted = _IBRAV_KMESH_ARGS[ibrav]
-        bad = [k for k in kwargs if k not in accepted and k not in ('nk1','nk2','nk3','nk')]
+        bad = [k for k in kwargs if k not in all_accepted]
         if bad:
-            raise TypeError(f"Unexpected keyword(s): {bad}")
+            raise TypeError(
+                f"Unexpected keyword(s): {bad}. "
+                f"For ibrav={ibrav} ({_IBRAV_INFO[ibrav]['label']}): "
+                f"mesh args={accepted_nk}, shift args={accepted_sk}"
+            )
 
-        # Check no incompatible args were given
+        # Validate that no wrong-symmetry sk kwargs were passed
         for k in kwargs:
-            if k not in accepted:
+            if k.startswith('sk') and k not in accepted_sk:
                 raise TypeError(
-                    f"'{k}' is not a valid mesh argument for ibrav={ibrav} "
+                    f"'{k}' is not a valid shift argument for ibrav={ibrav} "
                     f"({_IBRAV_INFO[ibrav]['label']}). "
-                    f"Expected: {accepted}"
+                    f"Expected: {accepted_sk}"
                 )
 
-        # Expand to nk1, nk2, nk3
-        if 'nk' in accepted:
+        # Expand nk → nk1, nk2, nk3
+        if 'nk' in accepted_nk:
             nk = kwargs.get('nk')
             if nk is None:
                 raise TypeError(f"'nk' is required for ibrav={ibrav} "
                                 f"({_IBRAV_INFO[ibrav]['label']})")
             self.nk1 = self.nk2 = self.nk3 = int(nk)
-        elif accepted == ('nk1', 'nk3'):
+        elif accepted_nk == ('nk1', 'nk3'):
             nk1 = kwargs.get('nk1')
             nk3 = kwargs.get('nk3')
             if nk1 is None or nk3 is None:
@@ -784,14 +826,30 @@ class KPointsAutoCard:
             self.nk2 = int(kwargs['nk2'])
             self.nk3 = int(kwargs['nk3'])
 
+        # Expand sk → sk1, sk2, sk3 (mirrors nk symmetry)
+        if 'sk' in accepted_sk:
+            sk = int(kwargs.get('sk', 0))
+            self.sk1 = self.sk2 = self.sk3 = sk
+        elif accepted_sk == ('sk1', 'sk3'):
+            self.sk1 = self.sk2 = int(kwargs.get('sk1', 0))
+            self.sk3 = int(kwargs.get('sk3', 0))
+        else:
+            self.sk1 = int(kwargs.get('sk1', 0))
+            self.sk2 = int(kwargs.get('sk2', 0))
+            self.sk3 = int(kwargs.get('sk3', 0))
+
     @classmethod
     def info(cls, ibrav: int) -> str:
-        """Describe the accepted mesh arguments for a given ibrav."""
-        accepted = _IBRAV_KMESH_ARGS[ibrav]
+        """Describe the accepted mesh and shift arguments for a given ibrav."""
+        accepted_nk = _IBRAV_KMESH_ARGS[ibrav]
+        accepted_sk = _IBRAV_KSHIFT_ARGS[ibrav]
         lines = [f"ibrav={ibrav}  {_IBRAV_INFO[ibrav]['label']}",
-                 f"KPointsAutoCard accepts: {accepted}"]
-        for a in accepted:
+                 f"Mesh args: {accepted_nk}"]
+        for a in accepted_nk:
             lines.append(f"  {a:5s}  {_KMESH_ARG_DOC.get(a,'')}")
+        lines.append(f"Shift args: {accepted_sk}")
+        for a in accepted_sk:
+            lines.append(f"  {a:5s}  {_KSHIFT_ARG_DOC.get(a,'')}")
         return '\n'.join(lines)
 
     def to_string(self) -> str:

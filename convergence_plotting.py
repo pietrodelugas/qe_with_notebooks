@@ -257,6 +257,49 @@ def plot_conv_thr_sweep(
     plt.show()
 
 
+def plot_k_shift_convergence(
+    nk_x,
+    e_gamma_ev_atom,
+    e_shift_ev_atom,
+    dE_shift_mev_atom,
+    nk_irr_gamma,
+    nk_irr_shift,
+    thr_mev_atom,
+    idx_conv=None,
+    nk_conv=None,
+):
+    """Plot k-point convergence measured via the sk=0 vs sk=1 shift difference."""
+    fig, ax = plt.subplots(1, 3, figsize=(15, 4))
+
+    ax[0].plot(nk_x, e_gamma_ev_atom, 'o-', label='sk=0 (Γ-centred)')
+    ax[0].plot(nk_x, e_shift_ev_atom, 's--', label='sk=1 (shifted)')
+    ax[0].set_xlabel('k-mesh size n (n×n×n)')
+    ax[0].set_ylabel('Total energy (eV/atom)')
+    ax[0].set_title('Energy vs k-mesh')
+    ax[0].legend()
+
+    ax[1].semilogy(nk_x, dE_shift_mev_atom, 'o-')
+    ax[1].axhline(thr_mev_atom, ls='--', color='tab:red',
+                  label=f'{thr_mev_atom:g} meV/atom')
+    if idx_conv is not None and nk_conv is not None:
+        ax[1].axvline(nk_conv, ls='--', color='tab:green',
+                      label=f'converged ~ {nk_conv}³')
+    ax[1].set_xlabel('k-mesh size n (n×n×n)')
+    ax[1].set_ylabel('|E(sk=1) − E(sk=0)| (meV/atom)')
+    ax[1].set_title('Shift difference (error gauge)')
+    ax[1].legend()
+
+    ax[2].plot(nk_x, nk_irr_gamma, 'o-', label='sk=0')
+    ax[2].plot(nk_x, nk_irr_shift, 's--', label='sk=1')
+    ax[2].set_xlabel('k-mesh size n (n×n×n)')
+    ax[2].set_ylabel('Irreducible k-points')
+    ax[2].set_title('Symmetry-reduced k-points')
+    ax[2].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
 def plot_force_stress_k_convergence(
     k_x,
     force_z_ev_ang,
