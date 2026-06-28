@@ -261,7 +261,7 @@ class QERunner:
         results = []
         for i, (tag, inp) in enumerate(cases, 1):
             prefix = f'  [{i}/{len(cases)}] {tag}'
-            print(f'{prefix}: running …', end='\r', flush=True)
+            print(f'{prefix}: running …', flush=True)
             data = self._run_case(tag, inp, Path(run_dir), force_rerun,
                                   collect_force_stress, atom_index_1based,
                                   collect_pressure, collect_scf_correction)
