@@ -262,9 +262,13 @@ class QERunner:
         for i, (tag, inp) in enumerate(cases, 1):
             prefix = f'  [{i}/{len(cases)}] {tag}'
             print(f'{prefix}: running …', flush=True)
-            data = self._run_case(tag, inp, Path(run_dir), force_rerun,
-                                  collect_force_stress, atom_index_1based,
-                                  collect_pressure, collect_scf_correction)
+            try:
+                data = self._run_case(tag, inp, Path(run_dir), force_rerun,
+                                      collect_force_stress, atom_index_1based,
+                                      collect_pressure, collect_scf_correction)
+            except Exception:
+                print(f'{prefix}: FAILED', flush=True)
+                raise
             if np.isnan(data['wall_s']):
                 status = 'cached'
             else:
@@ -296,6 +300,9 @@ class QERunner:
             wall_s = time.perf_counter() - t0
             out_file.write_text(result.stdout)
             if result.returncode != 0:
+                print(result.stdout, flush=True)
+                if result.stderr.strip():
+                    print(result.stderr, flush=True)
                 qe_msg = extract_qe_error(result.stdout) or extract_qe_error(result.stderr)
                 if qe_msg:
                     detail = f'QE error:\n{qe_msg}'
