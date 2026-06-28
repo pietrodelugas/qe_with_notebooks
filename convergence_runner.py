@@ -29,10 +29,19 @@ from __future__ import annotations
 
 import re
 import subprocess
+import sys
 import time
 from pathlib import Path
 
 import numpy as np
+
+try:
+    from IPython.display import display, HTML as _HTML
+    def _print(msg):
+        display(_HTML(f'<pre style="margin:0">{msg}</pre>'))
+except ImportError:
+    def _print(msg):
+        print(msg, flush=True)
 
 # ---------------------------------------------------------------------------
 # Unit conversion constants
@@ -261,19 +270,19 @@ class QERunner:
         results = []
         for i, (tag, inp) in enumerate(cases, 1):
             prefix = f'  [{i}/{len(cases)}] {tag}'
-            print(f'{prefix}: running …', flush=True)
+            _print(f'{prefix}: running …')
             try:
                 data = self._run_case(tag, inp, Path(run_dir), force_rerun,
                                       collect_force_stress, atom_index_1based,
                                       collect_pressure, collect_scf_correction)
             except Exception:
-                print(f'{prefix}: FAILED', flush=True)
+                _print(f'{prefix}: FAILED')
                 raise
             if np.isnan(data['wall_s']):
                 status = 'cached'
             else:
                 status = f'{data["wall_s"]:.1f}s'
-            print(f'{prefix}: {status}    ')
+            _print(f'{prefix}: {status}')
             results.append(data)
         return results
 
