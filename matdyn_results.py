@@ -268,9 +268,9 @@ class MatdynResults:
         p = inp._params
         return cls(
             run_dir=run_dir,
-            flfrq=p.get('flfrq', 'matdyn.freq'),
-            fldos=p.get('fldos',  'matdyn.dos'),
-            flvec=p.get('flvec',  'matdyn.modes'),
+            flfrq=Path(p.get('flfrq', 'matdyn.freq')).name,
+            fldos=Path(p.get('fldos',  'matdyn.dos')).name,
+            flvec=Path(p.get('flvec',  'matdyn.modes')).name,
         )
 
     # =========================================================================
