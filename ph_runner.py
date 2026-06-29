@@ -181,7 +181,7 @@ def _run_code(cmd, tag, inp, run_dir, force_rerun, code_name):
     in_file  = run_dir / f'{tag}.in'
     out_file = run_dir / f'{tag}.out'
 
-    in_file.write_text(inp.to_string())
+    in_file.write_text(inp.to_string() + '\n')
 
     cached_text = None
     if out_file.is_file() and not force_rerun:
