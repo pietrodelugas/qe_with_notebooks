@@ -29,6 +29,8 @@ MODULES=(
     bandstructure_tools.py
     ph_input.py
     ph_namelists.py
+    ph_runner.py
+    matdyn_results.py
     postproc_namelists.py
 )
 
@@ -39,6 +41,7 @@ TUTORIAL_NOTEBOOKS=(
     qe_eos_bulkmodulus
     qe_elastic_constants
     qe_bandstructure
+    qe_phonon_mgo_demo
 )
 
 for variant in jupyterlab colab; do
