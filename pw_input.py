@@ -12,6 +12,7 @@ ProjwfcNamelist   &PROJWFC
 AtomicSpeciesCard ATOMIC_SPECIES
 AtomicPositionsCard ATOMIC_POSITIONS  (can be populated from an ASE Atoms object)
 KPointsAutoCard   K_POINTS {automatic}  (ibrav-aware constructor)
+KPointsGammaCard  K_POINTS gamma
 PWInput           top-level container → renders a complete pw.x input file
 
 Design principles
@@ -933,6 +934,16 @@ class KPointsAutoCard:
                 f'shift={self.sk1}{self.sk2}{self.sk3})')
 
 
+class KPointsGammaCard:
+    """K_POINTS gamma card for Γ-only calculations."""
+
+    def to_string(self) -> str:
+        return 'K_POINTS gamma'
+
+    def __repr__(self) -> str:
+        return 'KPointsGammaCard()'
+
+
 # ---------------------------------------------------------------------------
 # CellParametersCard  (for ibrav=0)
 # ---------------------------------------------------------------------------
@@ -998,7 +1009,7 @@ class PWInput:
     cell      : CellNamelist       (optional)
     atomic_species    : AtomicSpeciesCard
     atomic_positions  : AtomicPositionsCard
-    k_points          : KPointsAutoCard  (or CellParametersCard-compatible object)
+    k_points          : KPointsAutoCard or KPointsGammaCard
     cell_parameters   : CellParametersCard  (required if ibrav=0)
 
     Usage
@@ -1071,6 +1082,36 @@ class PWInput:
         self.system.set_input_occupations(clear_smearing=clear_smearing)
         return self
 
+    @classmethod
+    def from_atoms(cls,
+                   atoms,
+                   ibrav: int,
+                   ecutwfc: float,
+                   pseudos: dict,
+                   calculation: str = 'scf',
+                   prefix: str = 'pwscf',
+                   pseudo_dir: str = '/content/pseudo',
+                   outdir: str = '/content/out',
+                   k_points: KPointsAutoCard | KPointsGammaCard = None,
+                   pos_units: str = 'crystal',
+                   ecutrho: float = None,
+                   **system_kwargs) -> 'PWInput':
+        """Build a PWInput directly from an ASE Atoms object."""
+        return pw_input_from_atoms(
+            atoms=atoms,
+            ibrav=ibrav,
+            ecutwfc=ecutwfc,
+            pseudos=pseudos,
+            calculation=calculation,
+            prefix=prefix,
+            pseudo_dir=pseudo_dir,
+            outdir=outdir,
+            k_points=k_points,
+            pos_units=pos_units,
+            ecutrho=ecutrho,
+            **system_kwargs,
+        )
+
     def to_string(self) -> str:
         blocks = [
             self.control.to_string(),
@@ -1115,7 +1156,7 @@ def pw_input_from_atoms(atoms,
                         prefix: str = 'pwscf',
                         pseudo_dir: str = '/content/pseudo',
                         outdir: str = '/content/out',
-                        k_points: KPointsAutoCard = None,
+                        k_points: KPointsAutoCard | KPointsGammaCard = None,
                         pos_units: str = 'crystal',
                         ecutrho: float = None,
                         **system_kwargs) -> PWInput:
@@ -1132,7 +1173,7 @@ def pw_input_from_atoms(atoms,
     prefix      : str
     pseudo_dir  : str
     outdir      : str
-    k_points    : KPointsAutoCard  (required)
+    k_points    : KPointsAutoCard or KPointsGammaCard  (required)
     pos_units   : str  atomic positions units, default 'crystal'
     ecutrho     : float (Ry), optional
     **system_kwargs : extra &SYSTEM parameters (e.g. occupations, degauss, …)
@@ -1142,7 +1183,7 @@ def pw_input_from_atoms(atoms,
     PWInput
     """
     if k_points is None:
-        raise ValueError("k_points (a KPointsAutoCard) is required.")
+        raise ValueError("k_points (KPointsAutoCard or KPointsGammaCard) is required.")
 
     control = ControlNamelist(
         calculation=calculation,
