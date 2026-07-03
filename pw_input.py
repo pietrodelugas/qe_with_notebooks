@@ -247,7 +247,7 @@ class SystemNamelist(_Namelist):
     _name = 'SYSTEM'
 
     def __init__(self, ibrav: int, **kwargs):
-        self._params: dict = {}
+        super().__init__()
         if ibrav not in _IBRAV_INFO:
             raise ValueError(f'ibrav={ibrav} is not valid. '
                              f'Valid values: {sorted(_IBRAV_INFO)}')
@@ -300,6 +300,77 @@ class SystemNamelist(_Namelist):
         """Public method: set celldm_1 … celldm_6 with ibrav validation."""
         self._set_celldm(**kwargs)
         return self
+
+    def set_smearing(self,
+                     degauss: float,
+                     smearing: str = 'mv') -> 'SystemNamelist':
+        """
+        Convenience helper for metallic occupations.
+
+        Parameters
+        ----------
+        degauss : float
+            Smearing width in Ry (required and must be > 0).
+        smearing : str
+            Smearing family. Supports QE values and common aliases:
+            mv/cold -> marzari-vanderbilt,
+            mp -> methfessel-paxton,
+            gauss -> gaussian,
+            fd/fermi -> fermi-dirac.
+        """
+        if degauss is None:
+            raise ValueError('degauss is mandatory for occupations=smearing.')
+
+        degauss = float(degauss)
+        if degauss <= 0.0:
+            raise ValueError('degauss must be > 0 for occupations=smearing.')
+
+        smearing_aliases = {
+            'mv': 'marzari-vanderbilt',
+            'cold': 'marzari-vanderbilt',
+            'mp': 'methfessel-paxton',
+            'gauss': 'gaussian',
+            'fd': 'fermi-dirac',
+            'fermi': 'fermi-dirac',
+        }
+        smearing_key = str(smearing).strip().lower()
+        smearing_value = smearing_aliases.get(smearing_key, smearing_key)
+
+        return self.update(
+            occupations='smearing',
+            smearing=smearing_value,
+            degauss=degauss,
+        )
+
+    def set_occ_fixed(self, clear_smearing: bool = True) -> 'SystemNamelist':
+        """
+        Set occupations='fixed'.
+
+        If clear_smearing=True, remove stale smearing/degauss values.
+        """
+        self.update(occupations='fixed')
+        if clear_smearing:
+            self._params.pop('smearing', None)
+            self._params.pop('degauss', None)
+        return self
+
+    def set_occ_from_input(self,
+                           clear_smearing: bool = True) -> 'SystemNamelist':
+        """
+        Set occupations='from_input' (QE OCCUPATIONS card workflow).
+
+        Note: this class currently configures the &SYSTEM flag only.
+        """
+        self.update(occupations='from_input')
+        if clear_smearing:
+            self._params.pop('smearing', None)
+            self._params.pop('degauss', None)
+        return self
+
+    def set_input_occupations(self,
+                              clear_smearing: bool = True) -> 'SystemNamelist':
+        """Alias for set_occ_from_input()."""
+        return self.set_occ_from_input(clear_smearing=clear_smearing)
 
     @property
     def ibrav(self) -> int:
@@ -380,8 +451,6 @@ class SystemNamelist(_Namelist):
         **kwargs : other &SYSTEM parameters (also used to pass celldm_* explicitly
             for not-yet-implemented ibrav values)
         """
-        from ase.data import atomic_numbers  # noqa: F401 — just to confirm ASE present
-
         _NOT_IMPLEMENTED = {
             7:   ('celldm(1), celldm(3)',                   'tetragonal I (BCT)'),
             9:   ('celldm(1), celldm(2), celldm(3)',        'orthorhombic base-centered'),
@@ -899,6 +968,30 @@ class PWInput:
         if system.ibrav == 0 and cell_parameters is None:
             raise ValueError("ibrav=0 requires a CellParametersCard.")
 
+    def set_smearing(self,
+                     degauss: float,
+                     smearing: str = 'mv') -> 'PWInput':
+        """Delegate smearing occupations setup to self.system and return self."""
+        self.system.set_smearing(degauss=degauss, smearing=smearing)
+        return self
+
+    def set_occ_fixed(self, clear_smearing: bool = True) -> 'PWInput':
+        """Delegate fixed occupations setup to self.system and return self."""
+        self.system.set_occ_fixed(clear_smearing=clear_smearing)
+        return self
+
+    def set_occ_from_input(self,
+                           clear_smearing: bool = True) -> 'PWInput':
+        """Delegate input occupations setup to self.system and return self."""
+        self.system.set_occ_from_input(clear_smearing=clear_smearing)
+        return self
+
+    def set_input_occupations(self,
+                              clear_smearing: bool = True) -> 'PWInput':
+        """Alias for set_occ_from_input(), delegated from PWInput."""
+        self.system.set_input_occupations(clear_smearing=clear_smearing)
+        return self
+
     def to_string(self) -> str:
         blocks = [
             self.control.to_string(),
@@ -920,7 +1013,7 @@ class PWInput:
 
     def write(self, filename: str) -> None:
         """Write the input to a file."""
-        with open(filename, 'w') as f:
+        with open(filename, 'w', encoding='utf-8') as f:
             f.write(self.to_string())
         print(f'Written: {filename}')
 
