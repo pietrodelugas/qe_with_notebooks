@@ -43,14 +43,14 @@ CONTROL = {
     },
     "outdir": {
         "default": "./",
-        "type": "str",
+        "type": "path",
         "unit": "",
         "description": "Directory for temporary and output files.",
         "valid": [],
     },
     "pseudo_dir": {
         "default": "./",
-        "type": "str",
+        "type": "path",
         "unit": "",
         "description": "Directory where pseudopotential files are stored.",
         "valid": [],
@@ -811,7 +811,7 @@ ATOMIC_SPECIES_CARD = {
         "description": "Atomic mass in atomic mass units.",
     },
     "pseudo_file": {
-        "type": "str",
+        "type": "path",
         "description": "Name of the pseudopotential file (must exist in pseudo_dir).",
     },
 }
@@ -943,15 +943,15 @@ PROJWFC = {
         "description": "Prefix matching the pw.x run whose wavefunctions are projected.",
     },
     "outdir": {
-        "default": "./", "type": "str", "unit": "",
+        "default": "./", "type": "path", "unit": "",
         "description": "Directory containing the pw.x save files.",
     },
     "filpdos": {
-        "default": "", "type": "str", "unit": "",
+        "default": "", "type": "path", "unit": "",
         "description": "Prefix for PDOS output files (projwfc.x writes one file per orbital).",
     },
     "filproj": {
-        "default": "", "type": "str", "unit": "",
+        "default": "", "type": "path", "unit": "",
         "description": "Output file prefix for raw |<phi|psi>|^2 projections (fat bands).",
     },
     "Emin": {

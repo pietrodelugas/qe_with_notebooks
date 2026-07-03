@@ -27,15 +27,21 @@ MODULES=(
     eos_plotting.py
     elastic_tools.py
     bandstructure_tools.py
+    ph_input.py
+    ph_namelists.py
+    ph_runner.py
+    matdyn_results.py
     postproc_namelists.py
 )
 
 TUTORIAL_NOTEBOOKS=(
     qe_pw_input_intro
     qe_convergence_tests
+    qe_scf_conv_thr
     qe_eos_bulkmodulus
     qe_elastic_constants
     qe_bandstructure
+    qe_phonon_mgo_demo
 )
 
 for variant in jupyterlab colab; do
